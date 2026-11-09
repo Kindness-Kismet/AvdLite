@@ -1,4 +1,4 @@
-# 通过白名单管理经过审查的源码、资源和文档。
+# Track reviewed source files, resources, and documentation through an allowlist.
 *
 !/.gitignore
 !/.gitattributes

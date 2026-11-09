@@ -1,4 +1,4 @@
-"""解析官方仓库、固定缓存身份，并验证下载内容。"""
+"""Resolve official sources, derive cache identities, and verify downloaded content."""
 import argparse
 import concurrent.futures
 import hashlib
@@ -23,10 +23,10 @@ def fetch(url):
 
 def select_image(xml, api='latest', page_size='auto'):
     if api != 'latest' and (not re.fullmatch(r'\d+(?:\.\d+)?', api) or int(api.split('.')[0]) < 35):
-        raise ValueError('版本必须是 latest 或 API 35 起的数字，例如 35、36.1、37.2')
+        raise ValueError('Version must be latest or API 35 and above, such as 35, 36.1, or 37.2')
     tags = {'auto': {'google_apis', 'google_apis_ps16k'}, '4k': {'google_apis'}, '16k': {'google_apis_ps16k'}}
     if page_size not in tags:
-        raise ValueError('页大小必须是 auto、4k 或 16k')
+        raise ValueError('Page size must be auto, 4k, or 16k')
     candidates = []
     for package in ET.fromstring(xml).findall('remotePackage'):
         path = package.attrib['path']
@@ -43,7 +43,7 @@ def select_image(xml, api='latest', page_size='auto'):
             continue
         checksum = archive.find('checksum')
         if checksum is None or checksum.attrib.get('type') not in ('sha1', 'sha256'):
-            raise ValueError('官方镜像缺少支持的摘要')
+            raise ValueError('Official image is missing a supported checksum')
         revision = '.'.join(package.findtext(f'revision/{name}', '0') for name in ('major', 'minor', 'micro'))
         item = {'package': path, 'api': version, 'tag': tag, 'abi': 'x86_64', 'revision': revision,
                 'page_size': '16k' if tag.endswith('ps16k') else '4k', 'size': int(archive.findtext('size')),
@@ -51,7 +51,7 @@ def select_image(xml, api='latest', page_size='auto'):
                 'url': urllib.parse.urljoin(INDEX, archive.findtext('url'))}
         candidates.append(item)
     if not candidates:
-        raise ValueError('官方仓库缺少所选版本与页大小的稳定镜像')
+        raise ValueError('Official repository has no stable image for the selected version and page size')
     return max(candidates, key=lambda p: (tuple(map(int, p['api'].split('.'))), p['page_size'] == '16k', tuple(map(int, p['revision'].split('.')))))
 
 
@@ -61,7 +61,7 @@ def resolve(api, page_size, enable_ksu):
     if enable_ksu:
         data = json.loads(fetch(KSU))
         if data['draft'] or data['prerelease']:
-            raise ValueError('KernelSU latest 必须是正式 release')
+            raise ValueError('KernelSU latest must be a stable release')
         release = {'tag': data['tag_name'], 'url': data['html_url'], 'assets': []}
         for asset in data['assets']:
             name = asset['name']
@@ -69,10 +69,10 @@ def resolve(api, page_size, enable_ksu):
                     or name.startswith('lkm-x86_64-') and name.endswith('_kernelsu.ko')):
                 digest = asset.get('digest', '')
                 if not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
-                    raise ValueError(f'KernelSU 资产缺少 SHA-256：{name}')
+                    raise ValueError(f'KernelSU asset is missing SHA-256: {name}')
                 release['assets'].append({'name': name, 'url': asset['browser_download_url'], 'sha256': digest[7:]})
         if not any(a['name'] == 'ksud-x86_64-unknown-linux-musl' for a in release['assets']):
-            raise ValueError('最新 KernelSU release 缺少 Linux x86_64 工具')
+            raise ValueError('Latest KernelSU release is missing the Linux x86_64 tool')
     return {'image': image, 'ksu': release}
 
 
@@ -89,7 +89,7 @@ def download(url, path, algorithm, expected):
                     '--connect-timeout', '30', '--speed-limit', '1024', '--speed-time', '90',
                     '--continue-at', '-', '--output', str(temporary), url], check=True)
     if digest(temporary) != expected:
-        raise ValueError(f'下载摘要校验失败：{path.name}')
+        raise ValueError(f'Download checksum verification failed: {path.name}')
     temporary.replace(path)
     return path
 

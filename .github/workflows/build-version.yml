@@ -15,17 +15,17 @@ on:
   workflow_dispatch:
     inputs:
       api:
-        description: "Google 镜像 API（latest 或 35 起，例如 35、36.1、37.2）"
+        description: "Google image API: latest or 35 and above, such as 35, 36.1, or 37.2"
         required: true
         default: latest
         type: string
       page_size:
-        description: "页大小；auto 在最新版本优先选择 16 KB"
+        description: "Page size; auto prefers 16 KB on the newest stable API"
         default: auto
         type: choice
         options: [auto, 4k, 16k]
       enable_ksu:
-        description: "启用官方最新稳定 KernelSU"
+        description: "Enable the latest official stable KernelSU release"
         default: true
         type: boolean
 permissions:
@@ -37,7 +37,7 @@ defaults:
 
 jobs:
   build:
-    name: 构建与启动验证（KSU=${{ inputs.enable_ksu }}）
+    name: Build and boot verification (KSU=${{ inputs.enable_ksu }})
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
@@ -47,47 +47,47 @@ jobs:
       INPUT_KSU: ${{ inputs.enable_ksu }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: 运行源码检查
+      - name: Check source files
         run: |
           python3 -m avdlite.privacy
           python3 -m unittest discover -s tests -v
-      - name: 解析官方最新版本
+      - name: Resolve official versions
         id: resolve
         run: |
           ksu_args=()
           if [[ "$INPUT_KSU" == true ]]; then ksu_args+=(--ksu); fi
           python3 -m avdlite.sources resolve --api "$INPUT_API" --page-size "$INPUT_PAGE_SIZE" "${ksu_args[@]}" --manifest "$RUNNER_TEMP/avdlite/manifest.json"
-      - name: 缓存官方镜像
+      - name: Cache official image
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/image
           key: image-v1-${{ steps.resolve.outputs.image_key }}
-      - name: 缓存 KernelSU release
+      - name: Cache KernelSU release
         if: env.INPUT_KSU == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .cache/ksu
           key: ksu-v1-${{ steps.resolve.outputs.ksu_key }}
-      - name: 下载并核验缓存内容
+      - name: Download and verify cached files
         run: python3 -m avdlite.sources download --manifest "$RUNNER_TEMP/avdlite/manifest.json" --cache "$GITHUB_WORKSPACE/.cache"
-      - name: 安装构建和模拟器工具
+      - name: Install build and emulator tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y e2fsprogs gdisk zerofree lz4 cpio unzip libpulse0 libnss3 libxkbcommon0 gdb
+          sudo apt-get install -y e2fsprogs gdisk zerofree lz4 cpio unzip libpulse0 libnss3 libxkbcommon0
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0" "platforms;android-35" "platform-tools" "emulator"
           sudo chmod a+rw /dev/kvm
           df -h "$RUNNER_TEMP"
-      - name: 检查最新镜像分区
+      - name: Inspect image partitions
         run: python3 -m avdlite.preflight --archive "$GITHUB_WORKSPACE/.cache/image/source.zip" --work "$RUNNER_TEMP/avdlite"
-      - name: 精简与构建镜像
+      - name: Debloat and build image
         run: |
           sudo env PYTHONDONTWRITEBYTECODE=1 python3 -m avdlite.build --manifest "$RUNNER_TEMP/avdlite/manifest.json" --cache "$GITHUB_WORKSPACE/.cache" --work "$RUNNER_TEMP/avdlite" --sdk "$ANDROID_HOME"
           sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/avdlite"
-      - name: 冷启动和重启验证
+      - name: Verify cold boot and reboot
         run: python3 -m avdlite.smoke --manifest "$RUNNER_TEMP/avdlite/manifest.json" --work "$RUNNER_TEMP/avdlite" --sdk "$ANDROID_HOME"
-      - name: 生成交付摘要
+      - name: Package verified image
         run: python3 -m avdlite.package --work "$RUNNER_TEMP/avdlite"
-      - name: 上传镜像
+      - name: Upload image bundle
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: AvdLite-api-${{ steps.resolve.outputs.api }}-${{ steps.resolve.outputs.page_size }}-ksu-${{ inputs.enable_ksu }}
@@ -95,7 +95,7 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 7
-      - name: 上传验证记录
+      - name: Upload verification evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

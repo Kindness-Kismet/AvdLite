@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   build:
-    name: 最新稳定镜像（KSU=${{ matrix.ksu }}）
+    name: Latest stable image (KSU=${{ matrix.ksu }})
     strategy:
       fail-fast: false
       matrix:
@@ -27,7 +27,7 @@ jobs:
       enable_ksu: ${{ matrix.ksu }}
 
   release:
-    name: 发布两个最新镜像
+    name: Publish both latest images
     needs: build
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
@@ -40,7 +40,7 @@ jobs:
           pattern: AvdLite-*
           path: ${{ runner.temp }}/release
           merge-multiple: true
-      - name: 校验并发布两个 ZIP
+      - name: Verify and publish both ZIP files
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: latest-${{ github.run_number }}

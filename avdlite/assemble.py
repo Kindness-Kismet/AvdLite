@@ -1,4 +1,4 @@
-"""从已缩小的文件系统重建 GPT 和 LP 元数据，保留原分区标识。"""
+"""Rebuild GPT and LP metadata from resized filesystems while retaining partition identities."""
 import hashlib
 import struct
 import zlib
@@ -24,7 +24,7 @@ def assemble(source, files, destination, vbmeta):
     layout = partitions(source)
     physical = layout['gpt']
     if {p['name'] for p in physical} != {'super', 'vbmeta'}:
-        raise ValueError('构建要求 super + vbmeta 的模拟器 GPT 布局')
+        raise ValueError('Building requires an emulator GPT layout with super and vbmeta')
     super_entry = next(p for p in physical if p['name'] == 'super')
     base = super_entry['offset']
     geometry = read_at(source, base + 4096, 4096)
@@ -37,7 +37,7 @@ def assemble(source, files, destination, vbmeta):
     eoff, ecount, esize = struct.unpack_from('<III', raw, 92)
     doff, dcount, dsize = struct.unpack_from('<III', raw, 116)
     if ecount != pcount or dcount != 1 or psize != 52 or esize != 24:
-        raise ValueError('重建要求每个分区包含一个 extent')
+        raise ValueError('Rebuilding requires one extent per partition')
     first_sector = struct.unpack_from('<Q', table, doff)[0]
     cursor = align(max(first_sector * SECTOR, 12288 + 2 * maximum * slots))
     segments = []
@@ -46,11 +46,11 @@ def assemble(source, files, destination, vbmeta):
         name, attrs, first, count, group = struct.unpack_from('<36sIIII', table, offset)
         name = name.rstrip(b'\0').decode('ascii')
         if count != 1 or first >= ecount:
-            raise ValueError('分区 extent 超出支持范围')
+            raise ValueError('Partition extent exceeds the supported range')
         file = files[name]
         size = align(Path(file).stat().st_size, block_size)
         if Path(file).stat().st_size % SECTOR:
-            raise ValueError('分区文件需要按扇区对齐')
+            raise ValueError('Partition files must be sector-aligned')
         struct.pack_into('<QIQI', table, eoff + first * esize, size // SECTOR, 0, cursor // SECTOR, 0)
         segments.append({'name': name, 'offset': base + cursor, 'size': size, 'file': file})
         cursor = align(cursor + size)
@@ -101,7 +101,7 @@ def assemble(source, files, destination, vbmeta):
             output.write(raw)
         vbmeta_entry = next(item for item in physical if item['name'] == 'vbmeta')
         if Path(vbmeta).stat().st_size > vbmeta_entry['size']:
-            raise ValueError('vbmeta 超出分区范围')
+            raise ValueError('vbmeta exceeds its partition')
         copy_file(vbmeta, output, vbmeta_entry['offset'])
         for item in segments:
             copy_file(item['file'], output, item['offset'])
@@ -109,5 +109,5 @@ def assemble(source, files, destination, vbmeta):
         output.seek(last_lba * SECTOR); output.write(backup)
     checked = partitions(destination)
     if [p['name'] for p in checked['partitions']] != [p['name'] for p in layout['partitions']]:
-        raise ValueError('重建后分区名校验失败')
+        raise ValueError('Partition name verification failed after rebuilding')
     return {'bytes': total_size, 'partitions': [{k: v for k, v in p.items() if k != 'file'} for p in segments]}

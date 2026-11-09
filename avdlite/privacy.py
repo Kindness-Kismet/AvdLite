@@ -1,4 +1,4 @@
-"""对 Git 管理的文件执行提交白名单、凭据、私钥和本机路径检查。"""
+"""Check tracked files against the allowlist and scan for credentials, keys, and local paths."""
 import argparse
 import re
 import subprocess
@@ -22,7 +22,7 @@ def scan(staged=False):
     paths = subprocess.check_output(arguments, text=True).splitlines()
     for path in paths:
         if not allowed(path):
-            raise ValueError(f'文件超出提交白名单：{path}')
+            raise ValueError(f'File is outside the commit allowlist: {path}')
         data = subprocess.check_output(['git', 'show', ':' + path]) if staged else open(path, 'rb').read()
         text = data.decode('utf-8')
         normalized = text.replace(chr(92), '/')
@@ -30,8 +30,8 @@ def scan(staged=False):
                     r'gh[pousr]_[A-Za-z0-9]{20,}', r'github_pat_[A-Za-z0-9_]{20,}',
                     r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----')
         if any(re.search(pattern, normalized) for pattern in patterns):
-            raise ValueError(f'发现本机路径或敏感凭据：{path}')
-    print(f'隐私检查通过：{len(paths)} 个白名单文件，无本机路径、凭据或私钥。')
+            raise ValueError(f'Local path or sensitive credential detected: {path}')
+    print(f'Privacy checks passed for {len(paths)} allowlisted files.')
 
 
 if __name__ == '__main__':

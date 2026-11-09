@@ -1,4 +1,4 @@
-"""生成设置和状态栏资源覆盖，使用临时构建密钥签名。"""
+"""Build settings and status bar overlays signed with a temporary build key."""
 import shutil
 import subprocess
 from pathlib import Path
@@ -10,7 +10,7 @@ def build(work, sdk, destinations):
     tools = max(versions, key=lambda p: tuple(int(x) for x in p.name.split('.') if x.isdigit()))
     android = sdk / 'platforms/android-35/android.jar'
     if not android.exists():
-        raise ValueError('需要 Android 35 平台定义')
+        raise ValueError('Android 35 platform definitions are required')
     key = work / 'overlay.keystore'
     subprocess.run(['keytool', '-genkeypair', '-keystore', str(key), '-storepass', 'android', '-keypass', 'android',
                     '-alias', 'overlay', '-dname', 'CN=AvdLite Build', '-keyalg', 'RSA', '-keysize', '2048', '-validity', '3650'], check=True)

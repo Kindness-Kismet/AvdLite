@@ -34,7 +34,7 @@ class PackageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             (work / 'verification.json').write_text('{"status":"failed"}')
-            with self.assertRaisesRegex(ValueError, '启动验证'):
+            with self.assertRaisesRegex(ValueError, 'boot verification'):
                 package(work)
             self.assertFalse((work / 'release').exists())
 

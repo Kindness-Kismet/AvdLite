@@ -1,4 +1,4 @@
-"""使用官方最新 release 的匹配 LKM 修补独立 ramdisk，保留原内核。"""
+"""Patch a standalone ramdisk with the latest official matching LKM and retain the stock kernel."""
 import hashlib
 import re
 import shutil
@@ -18,7 +18,7 @@ def kernel_version(path):
         version = stream.read(512).split(b'\0', 1)[0].decode('ascii')
     match = re.search(r'(\d+\.\d+)\.\d+-(android\d+)-', version)
     if not match:
-        raise ValueError('无法从 x86 启动头识别内核 KMI：' + version)
+        raise ValueError('Kernel KMI detection from the x86 boot header failed: ' + version)
     return version, f'{match[2]}-{match[1]}'
 
 
@@ -26,7 +26,7 @@ def install(root, trees, cache, release, work):
     version, kmi = kernel_version(root / 'kernel-ranchu')
     name = f'lkm-x86_64-{kmi}_kernelsu.ko'
     if name not in {asset['name'] for asset in release['assets']}:
-        raise ValueError(f'最新 KernelSU {release["tag"]} 缺少匹配的 {kmi} 模块')
+        raise ValueError(f'Latest KernelSU {release["tag"]} is missing a matching {kmi} module')
     tool = cache / 'ksu/ksud-x86_64-unknown-linux-musl'
     tool.chmod(0o755)
     patched = work / 'ksu-patched'
@@ -39,7 +39,7 @@ def install(root, trees, cache, release, work):
     expected = {asset['name'] for asset in release['assets']}
     managers = [p for p in managers if p.name in expected]
     if len(managers) != 1:
-        raise ValueError('当前 release 必须包含唯一 KernelSU 管理器')
+        raise ValueError('The selected release must contain exactly one KernelSU manager')
     app = trees['product'] / 'app/KernelSU'
     (app / 'lib/x86_64').mkdir(parents=True)
     shutil.copyfile(managers[0], app / 'KernelSU.apk')

@@ -22,7 +22,7 @@ class ImportTests(unittest.TestCase):
             digest = hashlib.sha256(image.read_bytes()).hexdigest()
             (bundle / 'SHA256SUMS').write_text(digest + '  x86_64/system.img\n')
             image.write_bytes(b'corrupted')
-            with self.assertRaisesRegex(ValueError, '摘要'):
+            with self.assertRaisesRegex(ValueError, 'checksum'):
                 install(bundle, sdk, avds, 'check')
             self.assertFalse(avds.exists())
             image.write_bytes(b'example-image')

@@ -1,4 +1,4 @@
-"""汇总通过启动验证的系统镜像、AVD 模板、导入脚本和文件摘要。"""
+"""Package verified system images, AVD templates, the importer, and file checksums."""
 import argparse
 import hashlib
 import json
@@ -11,14 +11,14 @@ from pathlib import Path
 def package(work):
     verification = json.loads((work / 'verification.json').read_text())
     if verification.get('status') != 'passed':
-        raise ValueError('打包要求启动验证通过')
+        raise ValueError('Packaging requires passed boot verification')
     output = work / 'output'
     project = Path(__file__).resolve().parent.parent
     for name in ('manifest.json', 'build-report.json', 'verification.json'):
         shutil.copyfile(work / name, output / name)
     shutil.copyfile(project / 'avdlite/import_avd.py', output / 'import-avd.py')
     shutil.copyfile(project / 'resources/avd-config.json', output / 'avd-config.json')
-    (output / '使用说明.md').write_text('# AvdLite\n\n使用 Python 3.11 或更新版本导入：\n\n```text\npython import-avd.py --sdk <Android SDK 目录>\n```\n\n通过 `--avd-home <AVD 目录>` 和 `--name <名称>` 指定数据目录与名称。默认配置为 2 核、4096 MB 内存、32 GB 存储、Resizable 和 Quick Boot。导入脚本验证文件摘要并创建独立 AVD。\n', encoding='utf-8')
+    (output / 'README.md').write_text('# AvdLite\n\nImport with Python 3.11 or later:\n\n```text\npython import-avd.py --sdk <Android-SDK-directory>\n```\n\nUse `--avd-home <directory>` and `--name <name>` to select a data directory and AVD name. Defaults: 2 CPU cores, 4096 MB RAM, 32 GB storage, Resizable display, and Quick Boot. The importer verifies file checksums and creates an independent AVD.\n', encoding='utf-8')
     hashes = []
     for path in sorted(output.rglob('*')):
         if path.is_file() and path.name != 'SHA256SUMS':
@@ -32,7 +32,7 @@ def package(work):
     properties = dict(line.split('=', 1) for line in (output / 'x86_64/build.prop').read_text(encoding='utf-8').splitlines() if '=' in line)
     android_version = properties['ro.build.version.release']
     if not re.fullmatch(r'\d+(?:\.\d+)*', android_version):
-        raise ValueError('打包要求正式 Android 版本号：' + android_version)
+        raise ValueError('Packaging requires a stable Android version number: ' + android_version)
     name = f'{image_name}-Android{android_version}-api{source["api"]}'
     release = work / 'release'
     release.mkdir()
@@ -44,7 +44,7 @@ def package(work):
     with archive.open('rb') as stream:
         digest = hashlib.file_digest(stream, 'sha256').hexdigest()
     (release / (name + '.sha256')).write_text(f'{digest}  {archive.name}\n')
-    print(f'交付包：{archive.name}，{archive.stat().st_size} 字节，SHA-256 {digest}')
+    print(f'Bundle: {archive.name}, {archive.stat().st_size} bytes, SHA-256 {digest}')
 
 
 if __name__ == '__main__':

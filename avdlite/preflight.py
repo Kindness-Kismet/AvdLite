@@ -1,4 +1,4 @@
-"""在修改前验证官方归档、分区布局与文件系统格式。"""
+"""Verify official archives, partition layouts, and filesystem formats before modification."""
 import argparse
 import json
 import re
@@ -14,15 +14,15 @@ def extract(archive, destination):
         for item in source.infolist():
             name = PurePosixPath(item.filename)
             if name.is_absolute() or '..' in name.parts or '\\' in item.filename:
-                raise ValueError('归档路径超出目标目录')
+                raise ValueError('Archive path escapes the destination directory')
             if item.is_dir():
                 continue
             if (item.external_attr >> 16) & 0o170000 == 0o120000:
-                raise ValueError('归档包含符号链接，解压要求普通文件')
+                raise ValueError('Archive extraction requires regular files; found a symbolic link')
         source.extractall(destination)
     systems = list(destination.rglob('system.img'))
     if len(systems) != 1:
-        raise ValueError('归档必须包含唯一 system.img')
+        raise ValueError('The archive must contain exactly one system.img')
     return systems[0].parent
 
 
@@ -38,7 +38,7 @@ def inspect(root):
                      if k in ('ro.build.version.sdk', 'ro.build.version.sdk_full', 'ro.build.version.incremental', 'ro.product.cpu.abi')}
     data['kernel_bytes'] = (Path(root) / 'kernel-ranchu').stat().st_size
     if any(part['filesystem'] == 'unknown' for part in data['partitions']):
-        raise ValueError('分区文件系统超出 ext4 / EROFS 支持范围')
+        raise ValueError('Supported partition filesystems are ext4 and EROFS')
     return data
 
 

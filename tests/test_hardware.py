@@ -59,7 +59,7 @@ class HardwareConfigurationTests(unittest.TestCase):
             vendor = Path(folder) / 'vendor'
             (vendor / 'etc/init/hw').mkdir(parents=True)
             (vendor / 'etc/init/hw/init.ranchu.rc').write_text('service vendor.uwb_hal /vendor/bin/hw/android.hardware.uwb-service /dev/uwb0\n    class hal\n')
-            with self.assertRaisesRegex(ValueError, '触发器'):
+            with self.assertRaisesRegex(ValueError, 'trigger'):
                 hardware({'vendor': vendor, 'product': Path(folder) / 'product'})
 
 

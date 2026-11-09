@@ -1,4 +1,4 @@
-"""在工作目录获取构建依赖，使用与原镜像公钥匹配的 AVB 公开测试密钥。"""
+"""Download build tools and the public AVB test key matching the source image."""
 import base64
 import hashlib
 import json
@@ -19,6 +19,6 @@ def prepare(work):
         if not path.exists() or hashlib.sha256(path.read_bytes()).hexdigest() != digest:
             content = base64.b64decode(fetch(base + remote + '?format=TEXT'), validate=False)
             if hashlib.sha256(content).hexdigest() != digest:
-                raise ValueError('AVB 构建工具摘要校验失败')
+                raise ValueError('AVB build tool checksum verification failed')
             path.write_bytes(content)
     return tools

@@ -1,14 +1,14 @@
-两个镜像均通过本次 Actions 的冷启动、重启和设置持久化验证。
+Both images passed cold boot, reboot, and settings persistence checks in this Actions run.
 
-- `AvdLiteWithKsu-Android<版本>-api<API>.zip`：包含构建时的官方最新稳定 KernelSU，匹配原内核 KMI。
-- `AvdLiteWithoutKsu-Android<版本>-api<API>.zip`：标准精简镜像。
+- `AvdLiteWithKsu-Android<version>-api<API>.zip`: includes the latest official stable KernelSU release resolved during the build, matched to the stock kernel KMI.
+- `AvdLiteWithoutKsu-Android<version>-api<API>.zip`: the standard lightweight image.
 
-镜像和依赖来自官方远程源。ZIP 内包含系统镜像、2 核 / 4096 MB / 32 GB / Resizable AVD 配置、导入脚本、文件 SHA-256 清单及构建验证报告。Release 资产摘要可用于校验 ZIP。
+Images and dependencies come directly from official remote sources. Each ZIP includes the system image, a 2-core / 4096 MB RAM / 32 GB / Resizable AVD template, an importer, file SHA-256 checksums, and build verification reports. Use the release asset digest to verify the ZIP.
 
-解压后使用 Python 3.11 或更新版本执行：
+Extract the archive and run with Python 3.11 or later:
 
 ```text
-python import-avd.py --sdk <Android SDK 目录>
+python import-avd.py --sdk <Android-SDK-directory>
 ```
 
-默认 AVD 名为 `AvdLiteWithKsu` 或 `AvdLiteWithoutKsu`。可通过 `--avd-home <AVD 目录>` 指定模拟器数据位置，通过 `--name <名称>` 创建独立实例。版本、实际精简内容和验证结果详见包内 JSON 报告。
+The default AVD name is `AvdLiteWithKsu` or `AvdLiteWithoutKsu`. Use `--avd-home <directory>` to select the AVD data directory and `--name <name>` for an independent instance. The included JSON reports record versions, actual removals, and verification results.

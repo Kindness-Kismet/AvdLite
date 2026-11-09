@@ -1,4 +1,4 @@
-"""在隔离 AVD 中冷启动、重启并验证实际运行状态，退出时关闭测试模拟器。"""
+"""Cold boot, reboot, and verify an isolated AVD, then stop the test emulator."""
 import argparse
 import json
 import os
@@ -29,15 +29,15 @@ class Device:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.process.poll() is not None:
-                raise RuntimeError(f'模拟器提前退出，退出码 {self.process.returncode}')
+                raise RuntimeError(f'Emulator exited early with code {self.process.returncode}')
             if probe():
                 return
             time.sleep(3)
         raise TimeoutError(description)
 
     def ready(self):
-        self.wait(lambda: self.shell('getprop', 'sys.boot_completed', check=False) == '1', '等待 Android 启动超时')
-        self.wait(lambda: 'package:' in self.shell('pm', 'path', 'com.android.systemui', check=False), '等待包管理器超时')
+        self.wait(lambda: self.shell('getprop', 'sys.boot_completed', check=False) == '1', 'Timed out waiting for Android boot')
+        self.wait(lambda: 'package:' in self.shell('pm', 'path', 'com.android.systemui', check=False), 'Timed out waiting for the package manager')
 
     def capture(self, name, *args):
         text = self.shell(*args, check=False, timeout=60)
@@ -69,69 +69,69 @@ def verify(sdk, work, manifest):
         with (evidence / 'emulator.log').open('w') as log:
             command = [str(sdk / 'emulator/emulator'), '-avd', 'AvdLiteCI', '-port', '5554', '-no-window', '-no-audio',
                        '-no-boot-anim', '-no-snapshot', '-no-metrics', '-gpu', 'swiftshader_indirect', '-feature', '-Vulkan', '-accel', 'on', '-verbose']
-            diagnostic = ['gdb', '--batch', '--return-child-result', '-ex', 'set pagination off',
-                          '-ex', 'handle SIGUSR1 SIGUSR2 SIGPIPE nostop noprint pass',
-                          '-ex', 'run', '-ex', 'thread apply all bt 12', '--args']
-            device.process = subprocess.Popen(diagnostic + command, stdout=log, stderr=subprocess.STDOUT, env=env)
+            device.process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, env=env)
             device.ready()
             for package in ('com.google.android.gms', 'com.google.android.gsf', 'com.google.android.apps.nexuslauncher', 'com.google.android.inputmethod.latin'):
                 if 'package:' not in device.shell('pm', 'path', package):
-                    raise AssertionError('核心应用检查失败：' + package)
+                    raise AssertionError('Core application verification failed: ' + package)
             report['checks']['core_packages'] = True
             if device.shell('getenforce') != 'Enforcing':
-                raise AssertionError('SELinux 状态偏离 Enforcing')
+                raise AssertionError('SELinux must be Enforcing')
             report['checks']['selinux_enforcing'] = True
             features = device.capture('features.txt', 'pm', 'list', 'features')
             for feature in ('uwb', 'nfc'):
                 port = device.shell('getprop', 'vendor.qemu.vport.' + feature)
                 report['checks'][feature + '_port'] = port
                 if not port and re.search(r'feature:android\.hardware\.' + feature + r'(?:[.=\s]|$)', features):
-                    raise AssertionError('缺少端口时仍声明了硬件功能：' + feature)
+                    raise AssertionError('Hardware feature declared with its emulator port absent: ' + feature)
             for name in ('config_lockDayNightMode', 'config_lockUiMode'):
                 value = device.shell('cmd', 'overlay', 'lookup', 'android', 'android:bool/' + name)
                 if value != 'false':
-                    raise AssertionError(name + ' 锁定状态校验失败：' + value)
+                    raise AssertionError(name + ' lock state verification failed: ' + value)
             for name in ('status_bar_padding_start', 'status_bar_padding_end'):
                 value = device.shell('cmd', 'overlay', 'lookup', 'com.android.systemui', 'com.android.systemui:dimen/' + name)
                 if not re.fullmatch(r'12(?:\.0+)?(?:dip|dp)', value):
-                    raise AssertionError('状态栏间距校验失败：' + value)
+                    raise AssertionError('Status bar padding verification failed: ' + value)
             report['checks']['overlays'] = True
             if manifest['ksu']:
-                device.wait(lambda: device.shell('getprop', 'sys.avdlite.ksu_ready', check=False) == '1', '等待 KernelSU 初始化超时', timeout=120)
+                device.wait(lambda: device.shell('getprop', 'sys.avdlite.ksu_ready', check=False) == '1', 'Timed out waiting for KernelSU initialization', timeout=120)
                 uid = device.shell('su', '-c', 'id')
                 if 'uid=0' not in uid:
-                    raise AssertionError('KernelSU root 权限检查失败')
+                    raise AssertionError('KernelSU root verification failed')
                 report['checks']['ksu_version'] = device.shell('su', '-c', '/data/adb/ksud debug version')
                 if not device.shell('pm', 'path', 'me.weishu.kernelsu').startswith('package:/data/app/'):
-                    raise AssertionError('KernelSU 管理器的数据区安装校验失败')
+                    raise AssertionError('KernelSU manager must be installed in the data partition')
             else:
                 if 'package:' in device.shell('pm', 'path', 'me.weishu.kernelsu', check=False):
-                    raise AssertionError('关闭 KSU 的镜像仍包含管理器')
+                    raise AssertionError('Standard image unexpectedly contains the KernelSU manager')
             device.shell('cmd', 'uimode', 'night', 'custom')
             for key, value in [('dark_theme_custom_start_time', '79200000000'), ('dark_theme_custom_end_time', '21600000000')]:
                 device.shell('settings', 'put', 'secure', key, value)
             before = device.shell('cat', '/proc/sys/kernel/random/boot_id')
             device.call('reboot')
-            device.wait(lambda: (value := device.shell('cat', '/proc/sys/kernel/random/boot_id', check=False)) not in ('', before), '等待 boot_id 更新超时')
+            device.wait(lambda: (value := device.shell('cat', '/proc/sys/kernel/random/boot_id', check=False)) not in ('', before), 'Timed out waiting for a new boot_id')
             device.ready()
             expected = {'ui_night_mode': '3', 'dark_theme_custom_start_time': '79200000000', 'dark_theme_custom_end_time': '21600000000'}
             actual = {key: device.shell('settings', 'get', 'secure', key) for key in expected}
             if actual != expected:
-                raise AssertionError('主题定时设置的持久化检查失败：' + repr(actual))
+                raise AssertionError('Night schedule persistence verification failed: ' + repr(actual))
             report['checks']['night_schedule_after_reboot'] = actual
             if manifest['ksu']:
-                device.wait(lambda: device.shell('getprop', 'sys.avdlite.ksu_ready', check=False) == '1', '等待重启后的 KSU 初始化超时', timeout=120)
+                device.wait(lambda: device.shell('getprop', 'sys.avdlite.ksu_ready', check=False) == '1', 'Timed out waiting for KernelSU initialization after reboot', timeout=120)
                 if 'uid=0' not in device.shell('su', '-c', 'id'):
-                    raise AssertionError('重启后的 root 权限检查失败')
+                    raise AssertionError('Root verification failed after reboot')
             displays = device.shell('dumpsys', 'SurfaceFlinger', '--display-id')
             match = re.search(r'Display (\d+)', displays)
             if not match:
-                raise AssertionError('截图查询缺少 display id')
+                raise AssertionError('Display ID query returned no display for the screenshot')
             with (evidence / 'screen.png').open('wb') as screenshot:
                 subprocess.run([device.adb, '-s', 'emulator-5554', 'exec-out', 'screencap', '-d', match[1], '-p'], stdout=screenshot, check=True, timeout=30, env=env)
             device.capture('uimode.txt', 'dumpsys', 'uimode')
             device.capture('overlays.txt', 'cmd', 'overlay', 'list')
             report['status'] = 'passed'
+    except Exception as error:
+        report.update(status='failed', error=str(error))
+        raise
     finally:
         if device.process is not None:
             device.capture('logcat.txt', 'logcat', '-d', '-b', 'all')

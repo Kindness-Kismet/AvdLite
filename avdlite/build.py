@@ -1,4 +1,4 @@
-"""在临时副本中修改文件系统，重签 vbmeta 并输出独立模拟器镜像。"""
+"""Modify filesystem copies, sign vbmeta, and produce a standalone emulator image."""
 import argparse
 import contextlib
 import hashlib
@@ -36,21 +36,21 @@ def sign_vbmeta(source, layout, work, avb):
     run(sys.executable, tool, 'extract_public_key', '--key', key, '--output', public)
     data = original.read_bytes()
     if data[:4] != b'AVB0':
-        raise ValueError('缺少 AVB header')
+        raise ValueError('Missing AVB header')
     auth_size = struct.unpack_from('>Q', data, 12)[0]
     key_offset, key_size = struct.unpack_from('>QQ', data, 64)
     if data[256 + auth_size + key_offset:256 + auth_size + key_offset + key_size] != public.read_bytes():
-        raise ValueError('镜像 AVB 公钥校验失败，重签要求匹配 AOSP 测试密钥')
+        raise ValueError('AVB public key verification failed; signing requires the matching AOSP test key')
     spec = importlib.util.spec_from_file_location('avdlite_avbtool', tool)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     header = module.AvbVBMetaHeader(data[:256])
     if not module.verify_vbmeta_signature(header, data[:256 + header.authentication_data_block_size + header.auxiliary_data_block_size]):
-        raise ValueError('原始 vbmeta 签名校验失败')
+        raise ValueError('Original vbmeta signature verification failed')
     output = work / 'vbmeta.img'
     rollback = struct.unpack_from('>Q', data, 112)[0]
     location = struct.unpack_from('>I', data, 124)[0]
-    # 精简分区已重新布局，关闭旧哈希树校验，并用原信任公钥签名新 vbmeta。
+    # Resized partitions require fresh vbmeta signed with the trusted test key and old hashtrees disabled.
     run(sys.executable, tool, 'make_vbmeta_image', '--output', output, '--algorithm', 'SHA256_RSA4096',
         '--key', key, '--flags', '3', '--rollback_index', rollback, '--rollback_index_location', location, '--padding_size', '4096')
     run(sys.executable, tool, 'verify_image', '--image', output, '--key', key)
@@ -69,10 +69,10 @@ def mounted(image, folder):
 
 def build(manifest, cache, work, sdk):
     if os.geteuid() != 0:
-        raise ValueError('构建需要 root 挂载独立文件系统副本')
+        raise ValueError('Building requires root to mount filesystem copies')
     roots = list((work / 'source').rglob('system.img'))
     if len(roots) != 1:
-        raise ValueError('先运行 preflight 解压官方镜像')
+        raise ValueError('Run preflight to extract the official image first')
     root = roots[0].parent
     original = root / 'system.img'
     layout = partitions(original)
@@ -96,15 +96,15 @@ def build(manifest, cache, work, sdk):
             files[entry['name']] = path
             if read_at(path, 1080, 2) != b'\x53\xef':
                 if entry['name'] != 'system_dlkm':
-                    raise ValueError('可修改分区必须是 ext4：' + entry['name'])
+                    raise ValueError('Editable partitions must use ext4: ' + entry['name'])
                 continue
             run('e2fsck', '-fy', path, allowed=(0, 1))
-            # 为新增资源预留空间，扩容对象为独立分区副本。
+            # Reserve space for added resources in the independent partition copy.
             with path.open('r+b') as stream:
                 stream.truncate(path.stat().st_size + 512 * 1024 * 1024)
             run('resize2fs', path)
             if struct.unpack('<I', read_at(path, 1124, 4))[0] & 0x4000:
-                # Android 共享数据块须先展开，ext4 才能以可写方式挂载。
+                # Expand Android shared blocks before mounting ext4 for modification.
                 run('e2fsck', '-fy', '-E', 'unshare_blocks', path, allowed=(0, 1))
             tree = stack.enter_context(mounted(path, work / 'mounts' / entry['name']))
             trees[entry['name']] = tree
@@ -117,7 +117,7 @@ def build(manifest, cache, work, sdk):
         customize.labels(trees)
         after = {name: {str(p.relative_to(tree)): sha256(p) for p in tree.rglob('build.prop')} for name, tree in trees.items()}
         if before != after:
-            raise ValueError('构建意外修改了上游 build.prop')
+            raise ValueError('Upstream build.prop changed unexpectedly')
         report['upstream_build_properties_unchanged'] = True
     for name, path in files.items():
         if name not in trees:
@@ -137,7 +137,7 @@ def build(manifest, cache, work, sdk):
     props = re.sub(r'^Pkg.Desc=.*$', f'Pkg.Desc={image_name} Google APIs x86_64', props, flags=re.MULTILINE)
     (output / 'source.properties').write_text(props)
     if sha256(output / 'kernel-ranchu') != kernel_hash:
-        raise ValueError('原内核被意外修改')
+        raise ValueError('Original kernel changed unexpectedly')
     report['kernel_sha256'] = kernel_hash
     report['original_bytes'] = original.stat().st_size
     report['system_sha256'] = sha256(output / 'system.img')

@@ -1,7 +1,7 @@
 #!/system/bin/sh
 set -eu
 
-# 管理器须安装到数据区，KernelSU 才能识别它；后续启动检查安装状态。
+# KernelSU recognizes the manager from the data partition; check its location on each boot.
 BUNDLED=/product/app/KernelSU/lib/x86_64/libksud.so
 if [ ! -x /data/adb/ksud ]; then
     "$BUNDLED" install
