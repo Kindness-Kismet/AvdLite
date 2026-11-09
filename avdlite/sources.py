@@ -51,7 +51,7 @@ def select_image(xml, api='latest', page_size='auto'):
                 'url': urllib.parse.urljoin(INDEX, archive.findtext('url'))}
         candidates.append(item)
     if not candidates:
-        raise ValueError('官方仓库中没有符合版本与页大小条件的稳定镜像')
+        raise ValueError('官方仓库缺少所选版本与页大小的稳定镜像')
     return max(candidates, key=lambda p: (tuple(map(int, p['api'].split('.'))), p['page_size'] == '16k', tuple(map(int, p['revision'].split('.')))))
 
 
@@ -72,7 +72,7 @@ def resolve(api, page_size, enable_ksu):
                     raise ValueError(f'KernelSU 资产缺少 SHA-256：{name}')
                 release['assets'].append({'name': name, 'url': asset['browser_download_url'], 'sha256': digest[7:]})
         if not any(a['name'] == 'ksud-x86_64-unknown-linux-musl' for a in release['assets']):
-            raise ValueError('最新 KernelSU 不包含 Linux x86_64 工具')
+            raise ValueError('最新 KernelSU release 缺少 Linux x86_64 工具')
     return {'image': image, 'ksu': release}
 
 
@@ -89,7 +89,7 @@ def download(url, path, algorithm, expected):
                     '--connect-timeout', '30', '--speed-limit', '1024', '--speed-time', '90',
                     '--continue-at', '-', '--output', str(temporary), url], check=True)
     if digest(temporary) != expected:
-        raise ValueError(f'下载摘要不匹配：{path.name}')
+        raise ValueError(f'下载摘要校验失败：{path.name}')
     temporary.replace(path)
     return path
 

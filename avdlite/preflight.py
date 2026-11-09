@@ -14,11 +14,11 @@ def extract(archive, destination):
         for item in source.infolist():
             name = PurePosixPath(item.filename)
             if name.is_absolute() or '..' in name.parts or '\\' in item.filename:
-                raise ValueError('归档包含不安全路径')
+                raise ValueError('归档路径超出目标目录')
             if item.is_dir():
                 continue
             if (item.external_attr >> 16) & 0o170000 == 0o120000:
-                raise ValueError('不接受归档中的符号链接')
+                raise ValueError('归档包含符号链接，解压要求普通文件')
         source.extractall(destination)
     systems = list(destination.rglob('system.img'))
     if len(systems) != 1:
@@ -38,7 +38,7 @@ def inspect(root):
                      if k in ('ro.build.version.sdk', 'ro.build.version.sdk_full', 'ro.build.version.incremental', 'ro.product.cpu.abi')}
     data['kernel_bytes'] = (Path(root) / 'kernel-ranchu').stat().st_size
     if any(part['filesystem'] == 'unknown' for part in data['partitions']):
-        raise ValueError('发现未支持的分区文件系统')
+        raise ValueError('分区文件系统超出 ext4 / EROFS 支持范围')
     return data
 
 

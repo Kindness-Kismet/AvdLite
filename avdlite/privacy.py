@@ -1,4 +1,4 @@
-"""提交前检查白名单、凭据、私钥和本机路径，不读取未跟踪的构建目录。"""
+"""对 Git 管理的文件执行提交白名单、凭据、私钥和本机路径检查。"""
 import argparse
 import re
 import subprocess
@@ -22,7 +22,7 @@ def scan(staged=False):
     paths = subprocess.check_output(arguments, text=True).splitlines()
     for path in paths:
         if not allowed(path):
-            raise ValueError(f'文件不在提交白名单：{path}')
+            raise ValueError(f'文件超出提交白名单：{path}')
         data = subprocess.check_output(['git', 'show', ':' + path]) if staged else open(path, 'rb').read()
         text = data.decode('utf-8')
         normalized = text.replace(chr(92), '/')

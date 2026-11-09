@@ -1,4 +1,4 @@
-"""读取 Android 模拟器 GPT 与动态分区元数据，只接受已核验的线性映射。"""
+"""读取并校验 Android 模拟器 GPT 与动态分区的线性映射。"""
 import hashlib
 import struct
 import uuid
@@ -20,17 +20,17 @@ def read_at(path, offset, size):
 def gpt(path):
     header = bytearray(read_at(path, SECTOR, SECTOR))
     if header[:8] != b'EFI PART':
-        raise ValueError('仅支持带 GPT 的原始模拟器 system.img')
+        raise ValueError('输入须为带 GPT 的原始模拟器 system.img')
     length, checksum = struct.unpack_from('<II', header, 12)
     struct.pack_into('<I', header, 16, 0)
     if zlib.crc32(header[:length]) != checksum:
-        raise ValueError('GPT header CRC 不匹配')
+        raise ValueError('GPT header CRC 校验失败')
     table_lba, count, entry_size, expected_crc = struct.unpack_from('<QIII', header, 72)
     if count > 1024 or entry_size < 128:
-        raise ValueError('不支持的 GPT 分区表尺寸')
+        raise ValueError('GPT 分区表尺寸超出支持范围')
     table = read_at(path, table_lba * SECTOR, count * entry_size)
     if zlib.crc32(table) != expected_crc:
-        raise ValueError('GPT 分区表 CRC 不匹配')
+        raise ValueError('GPT 分区表 CRC 校验失败')
     result = []
     for index in range(count):
         entry = table[index * entry_size:(index + 1) * entry_size]
@@ -49,33 +49,33 @@ def partitions(path):
     geometry = bytearray(read_at(path, base + 4096, 4096))
     magic, size = struct.unpack_from('<II', geometry)
     if magic != 0x616c4467 or size != 52:
-        raise ValueError('不支持的 LP geometry')
+        raise ValueError('LP geometry 格式超出支持范围')
     digest = bytes(geometry[8:40]); geometry[8:40] = bytes(32)
     if hashlib.sha256(geometry[:size]).digest() != digest:
-        raise ValueError('LP geometry SHA-256 不匹配')
+        raise ValueError('LP geometry SHA-256 校验失败')
     maximum, slots, block_size = struct.unpack_from('<III', geometry, 40)
     if slots not in (1, 2, 3) or maximum > 16 * 1024 * 1024:
-        raise ValueError('不支持的 LP metadata 槽布局')
+        raise ValueError('LP metadata 槽布局超出支持范围')
     raw = read_at(path, base + 12288, maximum)
     magic, major, minor, header_size = struct.unpack_from('<IHHI', raw)
     if magic != 0x414c5030 or major != 10 or header_size not in (128, 256):
-        raise ValueError('不支持的 LP header')
+        raise ValueError('LP header 格式超出支持范围')
     header = bytearray(raw[:header_size]); digest = bytes(header[12:44]); header[12:44] = bytes(32)
     if hashlib.sha256(header).digest() != digest:
-        raise ValueError('LP header SHA-256 不匹配')
+        raise ValueError('LP header SHA-256 校验失败')
     table_size = struct.unpack_from('<I', raw, 44)[0]
     table = raw[header_size:header_size + table_size]
     if len(table) != table_size or hashlib.sha256(table).digest() != raw[48:80]:
-        raise ValueError('LP tables SHA-256 不匹配')
+        raise ValueError('LP tables SHA-256 校验失败')
     descriptors = [struct.unpack_from('<III', raw, offset) for offset in (80, 92, 104, 116)]
     def entries(number, expected):
         offset, count, size = descriptors[number]
         if size != expected or offset + count * size > len(table):
-            raise ValueError('LP 表项边界不合法')
+            raise ValueError('LP 表项越界')
         return [table[offset + i * size:offset + (i + 1) * size] for i in range(count)]
     devices = entries(3, 64)
     if len(devices) != 1:
-        raise ValueError('只支持单一 super 设备')
+        raise ValueError('解析要求单一 super 设备')
     extents = [struct.unpack('<QIQI', item) for item in entries(1, 24)]
     result = []
     occupied = []
@@ -87,7 +87,7 @@ def partitions(path):
             raise ValueError('LP 分区映射越界')
         for sectors, kind, address, source in extents[first:first + count]:
             if kind != 0 or source != 0:
-                raise ValueError('只支持线性 LP extent')
+                raise ValueError('解析要求线性 LP extent')
             offset, length = base + address * SECTOR, sectors * SECTOR
             if offset < base or offset + length > base + super_entry['size']:
                 raise ValueError('LP extent 超出 super')

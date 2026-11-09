@@ -1,0 +1,14 @@
+{
+  "description": "按包名匹配可选组件，保留清单外的应用；适用范围为 API 35 起的 Google APIs 镜像。",
+  "groups": [
+    {"reason": "示例与测试界面，保留系统服务和测试所需运行库。", "packages": ["com.android.egg", "com.android.traceur", "com.android.devicediagnostics", "com.android.quicksearchbox", "com.android.launcher3", "com.android.dreams.basic", "com.android.gallery3d"]},
+    {"reason": "可由用户另行安装的日常应用，保留数据提供者。", "packages": ["com.android.chrome", "com.android.calendar", "com.android.contacts", "com.android.dialer", "com.android.messaging", "com.android.deskclock", "com.google.android.apps.photos", "com.google.android.apps.maps", "com.google.android.apps.docs", "com.google.android.gm", "com.google.android.youtube", "com.google.android.music", "com.google.android.videos"]},
+    {"reason": "语音助手、健康使用和恢复向导；保留 GMS、GSF 和设置搜索。", "packages": ["com.google.android.googlequicksearchbox", "com.android.hotwordenrollment.okgoogle", "com.android.hotwordenrollment.xgoogle", "com.google.android.apps.wellbeing", "com.google.android.apps.restore", "com.google.android.apps.pixelmigrate", "com.google.android.setupwizard", "com.google.android.as", "com.google.android.as.oss", "com.google.android.apps.pulse", "com.google.android.apps.turbo"]},
+    {"reason": "额外辅助功能应用；保留 Android 内置无障碍框架。", "packages": ["com.google.android.marvin.talkback", "com.google.android.apps.accessibility.voiceaccess", "com.google.android.accessibility.switchaccess", "com.google.android.tts"]},
+    {"reason": "打印、截图编辑和运营商预装工具；保留网络、电话和媒体核心服务。", "packages": ["com.android.printservice.recommendation", "com.google.android.printservice.recommendation", "com.google.android.markup", "com.android.stk", "com.android.carrierdefaultapp", "com.android.imsserviceentitlement", "com.android.calllogbackup", "com.android.providers.partnerbookmarks", "com.android.emergency"]}
+  ],
+  "protected": ["android", "com.android.systemui", "com.android.settings", "com.google.android.settings.intelligence", "com.google.android.gms", "com.google.android.gsf", "com.google.android.webview", "com.google.android.trichromelibrary", "com.google.android.inputmethod.latin", "com.google.android.apps.nexuslauncher", "com.google.android.permissioncontroller", "com.android.providers.settings", "com.android.providers.media", "com.google.android.providers.media.module", "com.android.documentsui", "com.google.android.documentsui"],
+  "remove_paths": [
+    {"partition": "product", "path": "etc/res/preloads/chrome", "reason": "随 Chrome 一并移除压缩预载副本。"}
+  ]
+}

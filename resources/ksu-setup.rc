@@ -1,0 +1,10 @@
+# 管理器初始化依赖包管理器就绪，每次开机单次执行。
+on property:sys.boot_completed=1
+    start avdlite-ksu-setup
+
+service avdlite-ksu-setup /system/bin/sh /product/etc/avdlite/ksu-setup.sh
+    user root
+    group root system shell
+    seclabel u:r:ksu:s0
+    disabled
+    oneshot

@@ -14,7 +14,7 @@ on:
         type: choice
         options: [auto, 4k, 16k]
       enable_ksu:
-        description: "下载并校验官方最新稳定 KernelSU"
+        description: "启用官方最新稳定 KernelSU"
         default: true
         type: boolean
   push:
@@ -33,15 +33,19 @@ defaults:
     shell: bash
 
 jobs:
-  source-check:
-    name: 官方镜像与缓存检查
+  build:
+    name: 构建与启动验证（KSU=${{ matrix.ksu }}）
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        ksu: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('[{0}]', inputs.enable_ksu) || '[true,false]') }}
     env:
       PYTHONDONTWRITEBYTECODE: "1"
       INPUT_API: ${{ inputs.api || 'latest' }}
       INPUT_PAGE_SIZE: ${{ inputs.page_size || 'auto' }}
-      INPUT_KSU: ${{ github.event_name != 'workflow_dispatch' || inputs.enable_ksu }}
+      INPUT_KSU: ${{ matrix.ksu }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: 运行源码检查
@@ -67,14 +71,63 @@ jobs:
           key: ksu-v1-${{ steps.resolve.outputs.ksu_key }}
       - name: 下载并核验缓存内容
         run: python3 -m avdlite.sources download --manifest "$RUNNER_TEMP/avdlite/manifest.json" --cache "$GITHUB_WORKSPACE/.cache"
+      - name: 安装构建和模拟器工具
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y e2fsprogs gdisk zerofree lz4 cpio unzip libpulse0 libnss3 libxkbcommon0
+          sdkmanager "build-tools;35.0.0" "platforms;android-35" "platform-tools" "emulator"
+          sudo chmod a+rw /dev/kvm
+          df -h "$RUNNER_TEMP"
       - name: 检查最新镜像分区
         run: python3 -m avdlite.preflight --archive "$GITHUB_WORKSPACE/.cache/image/source.zip" --work "$RUNNER_TEMP/avdlite"
-      - name: 上传准备检查报告
+      - name: 精简与构建镜像
+        run: |
+          sudo env PYTHONDONTWRITEBYTECODE=1 python3 -m avdlite.build --manifest "$RUNNER_TEMP/avdlite/manifest.json" --cache "$GITHUB_WORKSPACE/.cache" --work "$RUNNER_TEMP/avdlite" --sdk "$ANDROID_HOME"
+          sudo chown -R "$(id -u):$(id -g)" "$RUNNER_TEMP/avdlite"
+      - name: 冷启动和重启验证
+        run: python3 -m avdlite.smoke --manifest "$RUNNER_TEMP/avdlite/manifest.json" --work "$RUNNER_TEMP/avdlite" --sdk "$ANDROID_HOME"
+      - name: 生成交付摘要
+        run: python3 -m avdlite.package --work "$RUNNER_TEMP/avdlite"
+      - name: 上传镜像
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: preflight-api-${{ steps.resolve.outputs.api }}-${{ steps.resolve.outputs.page_size }}
+          name: AvdLite-api-${{ steps.resolve.outputs.api }}-${{ steps.resolve.outputs.page_size }}-ksu-${{ matrix.ksu }}
+          path: ${{ runner.temp }}/avdlite/release/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: 上传验证记录
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: evidence-ksu-${{ matrix.ksu }}
           path: |
             ${{ runner.temp }}/avdlite/manifest.json
             ${{ runner.temp }}/avdlite/preflight.json
-          if-no-files-found: error
+            ${{ runner.temp }}/avdlite/build-report.json
+            ${{ runner.temp }}/avdlite/verification.json
+            ${{ runner.temp }}/avdlite/evidence/
+          if-no-files-found: warn
           retention-days: 7
+
+  release:
+    name: 发布 AVD 资产
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: AvdLite-*
+          path: ${{ runner.temp }}/release
+          merge-multiple: true
+      - name: 发布已验证的交付包
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: build-${{ github.run_number }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          gh release create "$RELEASE_TAG" "$RUNNER_TEMP"/release/*.zip "$RUNNER_TEMP"/release/*.sha256 --target "$RELEASE_SHA" --title "AvdLite $RELEASE_TAG" --notes-file docs/release-notes.md
