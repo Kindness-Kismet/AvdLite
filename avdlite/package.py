@@ -20,11 +20,11 @@ def package(work):
     (output / '使用说明.md').write_text('# AvdLite\n\n使用 Python 3.11 或更新版本导入：\n\n```text\npython import-avd.py --sdk <Android SDK 目录>\n```\n\n通过 `--avd-home <AVD 目录>` 和 `--name <名称>` 指定数据目录与名称。默认配置为 2 核、4096 MB 内存、32 GB 存储、Resizable 和 Quick Boot。导入脚本验证文件摘要并创建独立 AVD。\n', encoding='utf-8')
     hashes = []
     for path in sorted(output.rglob('*')):
-        if path.is_file():
+        if path.is_file() and path.name != 'SHA256SUMS':
             with path.open('rb') as stream:
                 digest = hashlib.file_digest(stream, 'sha256').hexdigest()
             hashes.append(f'{digest}  {path.relative_to(output).as_posix()}')
-    (output / 'SHA256SUMS').write_text('\n'.join(hashes) + '\n')
+    (output / 'SHA256SUMS').write_text('\n'.join(hashes) + '\n', encoding='utf-8')
     manifest = json.loads((work / 'manifest.json').read_text())
     source = manifest['image']
     variant = 'ksu' if manifest['ksu'] else 'plain'

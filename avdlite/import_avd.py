@@ -15,7 +15,7 @@ def install(bundle, sdk, avd_home, name=None):
     name = name or f'AvdLite-{image["api"]}-{image["page_size"]}-{variant}'
     if not re.fullmatch(r'[A-Za-z0-9_.-]+', name):
         raise ValueError('AVD 名称可使用字母、数字、点、下划线和连字符')
-    for line in (bundle / 'SHA256SUMS').read_text().splitlines():
+    for line in (bundle / 'SHA256SUMS').read_text(encoding='utf-8').splitlines():
         digest, filename = line.split('  ', 1)
         path = bundle / filename
         path.resolve().relative_to(bundle.resolve())

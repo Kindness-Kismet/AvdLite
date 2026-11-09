@@ -69,7 +69,9 @@ def verify(sdk, work, manifest):
         with (evidence / 'emulator.log').open('w') as log:
             command = [str(sdk / 'emulator/emulator'), '-avd', 'AvdLiteCI', '-port', '5554', '-no-window', '-no-audio',
                        '-no-boot-anim', '-no-snapshot', '-no-metrics', '-gpu', 'swiftshader_indirect', '-feature', '-Vulkan', '-accel', 'on', '-verbose']
-            diagnostic = ['gdb', '--batch', '-ex', 'set pagination off', '-ex', 'run', '-ex', 'thread apply all bt 12', '--args']
+            diagnostic = ['gdb', '--batch', '--return-child-result', '-ex', 'set pagination off',
+                          '-ex', 'handle SIGUSR1 SIGUSR2 SIGPIPE nostop noprint pass',
+                          '-ex', 'run', '-ex', 'thread apply all bt 12', '--args']
             device.process = subprocess.Popen(diagnostic + command, stdout=log, stderr=subprocess.STDOUT, env=env)
             device.ready()
             for package in ('com.google.android.gms', 'com.google.android.gsf', 'com.google.android.apps.nexuslauncher', 'com.google.android.inputmethod.latin'):
