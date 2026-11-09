@@ -25,6 +25,18 @@
 
 自动测试使用最新稳定镜像，并行检查 KernelSU 开启和关闭两种配置。运行结果和构建产物见 [Actions](https://github.com/Kindness-Kismet/AvdLite/actions)。
 
+## 获取和导入
+
+构建通过后，ZIP 与 SHA-256 文件自动发布到 [Release Assets](https://github.com/Kindness-Kismet/AvdLite/releases)。`ksu` 包含 KernelSU，`plain` 为标准精简版。
+
+解压后使用 Python 3.11 或更新版本导入：
+
+```text
+python import-avd.py --sdk <Android SDK 目录> --avd-home <AVD 数据目录>
+```
+
+导入器校验摘要、保存系统镜像并注册独立 AVD。默认配置为 2 核、4096 MB 内存、32 GB 存储、Resizable 和 Quick Boot；`--name` 可指定名称。Android SDK 需安装当前稳定版 Emulator。
+
 ## 下载与缓存
 
 Google 镜像使用官方索引摘要验证，KernelSU 资产使用官方 SHA-256。缓存键包含内容摘要，每次恢复缓存后重新校验。

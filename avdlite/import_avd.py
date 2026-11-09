@@ -26,7 +26,7 @@ def install(bundle, sdk, avd_home, name=None):
     emulator = sdk / 'emulator' / ('emulator.exe' if os.name == 'nt' else 'emulator')
     if not emulator.exists():
         raise ValueError('指定 SDK 缺少 Android Emulator')
-    target = sdk / 'system-images' / ('android-' + image['api']) / ('avdlite_' + variant) / 'x86_64'
+    target = sdk / 'system-images' / ('android-' + image['api']) / ('avdlite_' + name) / 'x86_64'
     avd = avd_home / (name + '.avd')
     registry = avd_home / (name + '.ini')
     for path in (target, avd, registry):

@@ -53,12 +53,9 @@ def verify(sdk, work, manifest):
     avd = avds / 'AvdLiteCI.avd'
     avd.mkdir(parents=True)
     (avds / 'AvdLiteCI.ini').write_text(f'avd.ini.encoding=UTF-8\npath={avd}\ntarget=android-{manifest["image"]["api"]}\n')
-    values = {'AvdId': 'AvdLiteCI', 'avd.ini.displayname': 'AvdLiteCI', 'abi.type': 'x86_64', 'hw.cpu.arch': 'x86_64',
-              'hw.cpu.ncore': '2', 'hw.ramSize': '4096', 'vm.heapSize': '228', 'hw.lcd.width': '1080', 'hw.lcd.height': '2400',
-              'hw.lcd.density': '420', 'hw.gpu.enabled': 'yes', 'hw.gpu.mode': 'swiftshader_indirect', 'hw.keyboard': 'yes',
-              'hw.mainKeys': 'no', 'disk.dataPartition.size': '32G', 'image.sysdir.1': str(image) + '/',
-              'tag.id': 'avdlite', 'tag.display': 'AvdLite', 'PlayStore.enabled': 'false',
-              'fastboot.forceColdBoot': 'yes', 'fastboot.forceFastBoot': 'no', 'showDeviceFrame': 'no'}
+    values = json.loads((Path(__file__).resolve().parent.parent / 'resources/avd-config.json').read_text())
+    values.update({'AvdId': 'AvdLiteCI', 'avd.ini.displayname': 'AvdLiteCI', 'image.sysdir.1': str(image) + '/',
+                   'hw.gpu.mode': 'swiftshader_indirect', 'fastboot.forceColdBoot': 'yes', 'fastboot.forceFastBoot': 'no'})
     (avd / 'config.ini').write_text(''.join(f'{k}={v}\n' for k, v in values.items()))
     env = dict(os.environ, ANDROID_AVD_HOME=str(avds), ANDROID_EMULATOR_HOME=str(work / 'emulator-home'))
     device = Device(sdk, evidence)

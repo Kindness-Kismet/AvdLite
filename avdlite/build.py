@@ -101,8 +101,11 @@ def build(manifest, cache, work, sdk):
             run('e2fsck', '-fy', path, allowed=(0, 1))
             # 为新增资源预留空间，扩容对象为独立分区副本。
             with path.open('r+b') as stream:
-                stream.truncate(path.stat().st_size + 96 * 1024 * 1024)
+                stream.truncate(path.stat().st_size + 512 * 1024 * 1024)
             run('resize2fs', path)
+            if struct.unpack('<I', read_at(path, 1124, 4))[0] & 0x4000:
+                # Android 共享数据块须先展开，ext4 才能以可写方式挂载。
+                run('e2fsck', '-fy', '-E', 'unshare_blocks', path, allowed=(0, 1))
             tree = stack.enter_context(mounted(path, work / 'mounts' / entry['name']))
             trees[entry['name']] = tree
             before[entry['name']] = {str(p.relative_to(tree)): sha256(p) for p in tree.rglob('build.prop')}
