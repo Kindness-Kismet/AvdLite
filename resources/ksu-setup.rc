@@ -1,0 +1,10 @@
+# Initialize the manager once per boot after the package manager becomes available.
+on property:sys.boot_completed=1
+    start avdlite-ksu-setup
+
+service avdlite-ksu-setup /system/bin/sh /product/etc/avdlite/ksu-setup.sh
+    user root
+    group root system shell
+    seclabel u:r:ksu:s0
+    disabled
+    oneshot

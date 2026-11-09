@@ -1,0 +1,5 @@
+{
+  "avb_revision": "android-15.0.0_r1",
+  "avbtool_sha256": "78a50c8620985709f2e131cf948dcd66ecc43f09ed735e09d75751a7e21e4eb8",
+  "avb_testkey_sha256": "6a224754880a57ab9cbd308267cd157d94cf05a1c8cb851aec4090e045d24121"
+}
