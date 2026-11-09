@@ -1,6 +1,17 @@
-name: AvdLite
+name: Build Version
 
 on:
+  workflow_call:
+    inputs:
+      api:
+        default: latest
+        type: string
+      page_size:
+        default: auto
+        type: string
+      enable_ksu:
+        default: true
+        type: boolean
   workflow_dispatch:
     inputs:
       api:
@@ -17,16 +28,8 @@ on:
         description: "启用官方最新稳定 KernelSU"
         default: true
         type: boolean
-  push:
-    branches: [main]
-  pull_request:
-
 permissions:
   contents: read
-
-concurrency:
-  group: avdlite-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 defaults:
   run:
@@ -34,18 +37,14 @@ defaults:
 
 jobs:
   build:
-    name: 构建与启动验证（KSU=${{ matrix.ksu }}）
+    name: 构建与启动验证（KSU=${{ inputs.enable_ksu }}）
     runs-on: ubuntu-24.04
     timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        ksu: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('[{0}]', inputs.enable_ksu) || '[true,false]') }}
     env:
       PYTHONDONTWRITEBYTECODE: "1"
       INPUT_API: ${{ inputs.api || 'latest' }}
       INPUT_PAGE_SIZE: ${{ inputs.page_size || 'auto' }}
-      INPUT_KSU: ${{ matrix.ksu }}
+      INPUT_KSU: ${{ inputs.enable_ksu }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: 运行源码检查
@@ -91,24 +90,16 @@ jobs:
       - name: 上传镜像
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: AvdLite-api-${{ steps.resolve.outputs.api }}-${{ steps.resolve.outputs.page_size }}-ksu-${{ matrix.ksu }}
+          name: AvdLite-api-${{ steps.resolve.outputs.api }}-${{ steps.resolve.outputs.page_size }}-ksu-${{ inputs.enable_ksu }}
           path: ${{ runner.temp }}/avdlite/release/
           compression-level: 0
           if-no-files-found: error
           retention-days: 7
-      - name: 保存启动失败的构建输出
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: debug-image-ksu-${{ matrix.ksu }}
-          path: ${{ runner.temp }}/avdlite/output/
-          retention-days: 1
-          if-no-files-found: ignore
       - name: 上传验证记录
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: evidence-ksu-${{ matrix.ksu }}
+          name: evidence-ksu-${{ inputs.enable_ksu }}
           path: |
             ${{ runner.temp }}/avdlite/manifest.json
             ${{ runner.temp }}/avdlite/preflight.json
@@ -117,25 +108,3 @@ jobs:
             ${{ runner.temp }}/avdlite/evidence/
           if-no-files-found: warn
           retention-days: 7
-
-  release:
-    name: 发布 AVD 资产
-    needs: build
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: AvdLite-*
-          path: ${{ runner.temp }}/release
-          merge-multiple: true
-      - name: 发布已验证的交付包
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: build-${{ github.run_number }}
-          RELEASE_SHA: ${{ github.sha }}
-        run: |
-          gh release create "$RELEASE_TAG" "$RUNNER_TEMP"/release/*.zip "$RUNNER_TEMP"/release/*.sha256 --target "$RELEASE_SHA" --title "AvdLite $RELEASE_TAG" --notes-file docs/release-notes.md

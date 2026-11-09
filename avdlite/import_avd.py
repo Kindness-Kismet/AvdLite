@@ -10,9 +10,9 @@ from pathlib import Path
 
 def install(bundle, sdk, avd_home, name=None):
     manifest = json.loads((bundle / 'manifest.json').read_text(encoding='utf-8'))
-    variant = 'ksu' if manifest['ksu'] else 'plain'
+    image_name = 'AvdLiteWithKsu' if manifest['ksu'] else 'AvdLiteWithoutKsu'
     image = manifest['image']
-    name = name or f'AvdLite-{image["api"]}-{image["page_size"]}-{variant}'
+    name = name or image_name
     if not re.fullmatch(r'[A-Za-z0-9_.-]+', name):
         raise ValueError('AVD 名称可使用字母、数字、点、下划线和连字符')
     for line in (bundle / 'SHA256SUMS').read_text(encoding='utf-8').splitlines():
@@ -26,7 +26,7 @@ def install(bundle, sdk, avd_home, name=None):
     emulator = sdk / 'emulator' / ('emulator.exe' if os.name == 'nt' else 'emulator')
     if not emulator.exists():
         raise ValueError('指定 SDK 缺少 Android Emulator')
-    target = sdk / 'system-images' / ('android-' + image['api']) / ('avdlite_' + name) / 'x86_64'
+    target = sdk / 'system-images' / ('android-' + image['api']) / name / 'x86_64'
     avd = avd_home / (name + '.avd')
     registry = avd_home / (name + '.ini')
     for path in (target, avd, registry):

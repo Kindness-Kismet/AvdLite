@@ -2,6 +2,7 @@
 import argparse
 import hashlib
 import json
+import re
 import shutil
 import zipfile
 from pathlib import Path
@@ -27,8 +28,12 @@ def package(work):
     (output / 'SHA256SUMS').write_text('\n'.join(hashes) + '\n', encoding='utf-8')
     manifest = json.loads((work / 'manifest.json').read_text())
     source = manifest['image']
-    variant = 'ksu' if manifest['ksu'] else 'plain'
-    name = f'AvdLite-api{source["api"]}-{source["page_size"]}-{variant}'
+    image_name = 'AvdLiteWithKsu' if manifest['ksu'] else 'AvdLiteWithoutKsu'
+    properties = dict(line.split('=', 1) for line in (output / 'x86_64/build.prop').read_text(encoding='utf-8').splitlines() if '=' in line)
+    android_version = properties['ro.build.version.release']
+    if not re.fullmatch(r'\d+(?:\.\d+)*', android_version):
+        raise ValueError('打包要求正式 Android 版本号：' + android_version)
+    name = f'{image_name}-Android{android_version}-api{source["api"]}'
     release = work / 'release'
     release.mkdir()
     archive = release / (name + '.zip')

@@ -1,6 +1,7 @@
 """按包名精简应用，并根据模拟器端口配置硬件功能声明。"""
 import contextlib
 import gzip
+import hashlib
 import json
 import lzma
 import os
@@ -135,6 +136,24 @@ def hardware(trees):
     init.parent.mkdir(parents=True, exist_ok=True)
     init.write_text('\n'.join(lines))
     return changes
+
+
+def hardware_policy(trees):
+    system = trees['system']
+    prefix = system / 'system' if (system / 'system/etc').exists() else system
+    directory = prefix / 'etc/selinux'
+    policy = directory / 'plat_sepolicy.cil'
+    text = policy.read_text(encoding='utf-8')
+    rule = '(allow init vendor_configs_file (file (mounton)))'
+    # init 需在框架扫描前覆盖 vendor 和 NFC APEX 的功能声明，保持 Enforcing。
+    if rule not in text:
+        policy.write_text(text.rstrip() + '\n' + rule + '\n', encoding='utf-8')
+    digest = hashlib.sha256(policy.read_bytes())
+    for mapping in sorted((directory / 'mapping').glob('*.cil')):
+        digest.update(mapping.read_bytes())
+    # 更新平台策略身份，使 init 按修改后的 CIL 重新编译策略。
+    (directory / 'plat_sepolicy_and_mapping.sha256').write_text(digest.hexdigest() + '\n', encoding='utf-8')
+    return rule
 
 
 def labels(trees):

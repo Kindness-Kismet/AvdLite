@@ -111,7 +111,7 @@ def build(manifest, cache, work, sdk):
             before[entry['name']] = {str(p.relative_to(tree)): sha256(p) for p in tree.rglob('build.prop')}
         sdk_tools = overlays.build(work, sdk, trees)
         report = {'source': manifest['image'], 'debloat': customize.debloat(trees, sdk_tools / 'aapt2'),
-                  'hardware': customize.hardware(trees), 'ksu': None}
+                  'hardware': customize.hardware(trees), 'hardware_policy': customize.hardware_policy(trees), 'ksu': None}
         if manifest['ksu']:
             report['ksu'] = ksu.install(output, trees, cache, manifest['ksu'], work)
         customize.labels(trees)
@@ -133,7 +133,8 @@ def build(manifest, cache, work, sdk):
     digest = hashlib.sha256(vb[:meaningful]).hexdigest()
     (output / 'VerifiedBootParams.textproto').write_text(f'major_version: 2\nparam: "androidboot.vbmeta.size={meaningful}"\nparam: "androidboot.vbmeta.hash_alg=sha256"\nparam: "androidboot.vbmeta.digest={digest}"\n')
     props = (output / 'source.properties').read_text()
-    props = re.sub(r'^Pkg.Desc=.*$', 'Pkg.Desc=AvdLite Google APIs x86_64', props, flags=re.MULTILINE)
+    image_name = 'AvdLiteWithKsu' if manifest['ksu'] else 'AvdLiteWithoutKsu'
+    props = re.sub(r'^Pkg.Desc=.*$', f'Pkg.Desc={image_name} Google APIs x86_64', props, flags=re.MULTILINE)
     (output / 'source.properties').write_text(props)
     if sha256(output / 'kernel-ranchu') != kernel_hash:
         raise ValueError('原内核被意外修改')
