@@ -74,7 +74,7 @@ jobs:
       - name: 安装构建和模拟器工具
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y e2fsprogs gdisk zerofree lz4 cpio unzip libpulse0 libnss3 libxkbcommon0
+          sudo apt-get install -y e2fsprogs gdisk zerofree lz4 cpio unzip libpulse0 libnss3 libxkbcommon0 gdb
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0" "platforms;android-35" "platform-tools" "emulator"
           sudo chmod a+rw /dev/kvm
           df -h "$RUNNER_TEMP"
@@ -96,6 +96,14 @@ jobs:
           compression-level: 0
           if-no-files-found: error
           retention-days: 7
+      - name: 保存启动失败的构建输出
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: debug-image-ksu-${{ matrix.ksu }}
+          path: ${{ runner.temp }}/avdlite/output/
+          retention-days: 1
+          if-no-files-found: ignore
       - name: 上传验证记录
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

@@ -134,8 +134,6 @@ def build(manifest, cache, work, sdk):
     (output / 'VerifiedBootParams.textproto').write_text(f'major_version: 2\nparam: "androidboot.vbmeta.size={meaningful}"\nparam: "androidboot.vbmeta.hash_alg=sha256"\nparam: "androidboot.vbmeta.digest={digest}"\n')
     props = (output / 'source.properties').read_text()
     props = re.sub(r'^Pkg.Desc=.*$', 'Pkg.Desc=AvdLite Google APIs x86_64', props, flags=re.MULTILINE)
-    props = re.sub(r'^SystemImage.TagId=.*$', 'SystemImage.TagId=avdlite', props, flags=re.MULTILINE)
-    props = re.sub(r'^SystemImage.TagDisplay=.*$', 'SystemImage.TagDisplay=AvdLite', props, flags=re.MULTILINE)
     (output / 'source.properties').write_text(props)
     if sha256(output / 'kernel-ranchu') != kernel_hash:
         raise ValueError('原内核被意外修改')
