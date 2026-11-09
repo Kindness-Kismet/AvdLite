@@ -104,7 +104,7 @@ def verify(sdk, work, manifest):
             else:
                 if 'package:' in device.shell('pm', 'path', 'me.weishu.kernelsu', check=False):
                     raise AssertionError('Standard image unexpectedly contains the KernelSU manager')
-            device.shell('cmd', 'uimode', 'night', 'custom')
+            device.shell('cmd', 'uimode', 'night', 'custom_schedule')
             for key, value in [('dark_theme_custom_start_time', '79200000000'), ('dark_theme_custom_end_time', '21600000000')]:
                 device.shell('settings', 'put', 'secure', key, value)
             before = device.shell('cat', '/proc/sys/kernel/random/boot_id')
