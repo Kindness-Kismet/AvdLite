@@ -177,6 +177,8 @@ def verify(sdk, work, manifest):
         if device.process is not None:
             device.capture('logcat.txt', 'logcat', '-d', '-b', 'all')
             device.capture('properties.txt', 'getprop')
+            device.capture('windows.txt', 'dumpsys', 'window', 'windows')
+            device.capture('surfaces.txt', 'dumpsys', 'SurfaceFlinger')
             device.call('emu', 'kill', check=False)
             try:
                 device.process.wait(timeout=20)
