@@ -35,7 +35,7 @@ def debloat(trees, aapt):
     protected = set(config['protected'])
     if protected.intersection(selected):
         raise ValueError('精简清单包含受保护的系统依赖')
-    removed, packages = [], set()
+    removed, packages, inventory = [], set(), []
     for partition, tree in trees.items():
         prefix = tree / 'system' if partition == 'system' and (tree / 'system/app').exists() else tree
         if (prefix / 'framework/framework-res.apk').exists():
@@ -50,6 +50,7 @@ def debloat(trees, aapt):
                 direct = [p for p in app.iterdir() if p.is_file() and p.name.endswith(('.apk', '.apk.gz', '.apk.xz'))]
                 identities = {apk_package(apk, aapt) for apk in direct}
                 packages.update(identities)
+                inventory.append({'partition': partition, 'path': str(app.relative_to(tree)), 'packages': sorted(identities)})
                 matches = identities.intersection(selected)
                 if matches:
                     # 整目录移除要求目录内全部 APK 命中清单，共享目录交由人工审核。
@@ -76,9 +77,14 @@ def debloat(trees, aapt):
     essentials = ('android', 'com.android.systemui', 'com.android.settings', 'com.google.android.gms', 'com.google.android.gsf',
                   'com.google.android.apps.nexuslauncher', 'com.google.android.inputmethod.latin')
     missing = set(essentials) - packages
+    gms_apex = sorted(str(p.relative_to(product)) for p in (product / 'apex').glob('com.google.android.gmssystem.*.apex'))
+    # 新版 GMS 主包位于 APEX，构建检查保留该容器，启动测试验证实际包注册。
+    if gms_apex:
+        missing.discard('com.google.android.gms')
     if missing:
         raise ValueError('镜像缺少已支持的核心应用：' + ','.join(sorted(missing)))
-    return {'removed': removed, 'unavailable_candidates': sorted(set(selected) - packages), 'protected_found': sorted(protected.intersection(packages))}
+    return {'removed': removed, 'unavailable_candidates': sorted(set(selected) - packages),
+            'protected_found': sorted(protected.intersection(packages)), 'gms_apex': gms_apex, 'original_apps': inventory}
 
 
 def hardware(trees):
