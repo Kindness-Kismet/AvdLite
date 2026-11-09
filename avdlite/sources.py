@@ -1,5 +1,6 @@
 """解析官方仓库、固定缓存身份，并验证下载内容。"""
 import argparse
+import concurrent.futures
 import hashlib
 import json
 import os
@@ -117,10 +118,18 @@ def main():
     else:
         manifest = json.loads(args.manifest.read_text())
         image = manifest['image']
-        download(image['url'], args.cache / 'image/source.zip', image['checksum_type'], image['checksum'])
-        if manifest['ksu']:
-            for asset in manifest['ksu']['assets']:
-                download(asset['url'], args.cache / 'ksu' / asset['name'], 'sha256', asset['sha256'])
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool:
+            jobs = [pool.submit(download, image['url'], args.cache / 'image/source.zip', image['checksum_type'], image['checksum'])]
+            if manifest['ksu']:
+                jobs.extend(pool.submit(download, asset['url'], args.cache / 'ksu' / asset['name'], 'sha256', asset['sha256']) for asset in manifest['ksu']['assets'])
+            errors = []
+            for job in jobs:
+                try:
+                    job.result()
+                except Exception as error:
+                    errors.append(str(error))
+            if errors:
+                raise RuntimeError('; '.join(errors))
 
 
 if __name__ == '__main__':

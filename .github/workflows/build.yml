@@ -45,7 +45,9 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: 运行源码检查
-        run: python3 -m unittest discover -s tests -v
+        run: |
+          python3 -m avdlite.privacy
+          python3 -m unittest discover -s tests -v
       - name: 解析官方最新版本
         id: resolve
         run: |
