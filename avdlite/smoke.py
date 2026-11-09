@@ -10,13 +10,14 @@ from pathlib import Path
 
 
 class Device:
-    def __init__(self, sdk, evidence):
+    def __init__(self, sdk, evidence, env):
         self.adb = str(sdk / 'platform-tools/adb')
         self.evidence = evidence
+        self.env = env
         self.process = None
 
     def call(self, *args, check=True, timeout=30):
-        result = subprocess.run([self.adb, '-s', 'emulator-5554', *args], capture_output=True, text=True, timeout=timeout)
+        result = subprocess.run([self.adb, '-s', 'emulator-5554', *args], capture_output=True, text=True, timeout=timeout, env=self.env)
         if check and result.returncode:
             raise RuntimeError(result.stderr + result.stdout)
         return result.stdout.strip()
@@ -28,7 +29,7 @@ class Device:
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             if self.process.poll() is not None:
-                raise RuntimeError('模拟器提前退出')
+                raise RuntimeError(f'模拟器提前退出，退出码 {self.process.returncode}')
             if probe():
                 return
             time.sleep(3)
@@ -57,13 +58,17 @@ def verify(sdk, work, manifest):
     values.update({'AvdId': 'AvdLiteCI', 'avd.ini.displayname': 'AvdLiteCI', 'image.sysdir.1': str(image) + '/',
                    'hw.gpu.mode': 'swiftshader_indirect', 'fastboot.forceColdBoot': 'yes', 'fastboot.forceFastBoot': 'no'})
     (avd / 'config.ini').write_text(''.join(f'{k}={v}\n' for k, v in values.items()))
-    env = dict(os.environ, ANDROID_AVD_HOME=str(avds), ANDROID_EMULATOR_HOME=str(work / 'emulator-home'))
-    device = Device(sdk, evidence)
+    emulator_home = work / 'emulator-home'
+    emulator_home.mkdir()
+    env = dict(os.environ, ANDROID_AVD_HOME=str(avds), ANDROID_EMULATOR_HOME=str(emulator_home),
+               ANDROID_USER_HOME=str(emulator_home), QT_QPA_PLATFORM='offscreen')
+    device = Device(sdk, evidence, env)
+    subprocess.run([device.adb, 'start-server'], check=True, env=env)
     report = {'ksu_enabled': bool(manifest['ksu']), 'checks': {}}
     try:
         with (evidence / 'emulator.log').open('w') as log:
             command = [str(sdk / 'emulator/emulator'), '-avd', 'AvdLiteCI', '-port', '5554', '-no-window', '-no-audio',
-                       '-no-boot-anim', '-no-snapshot', '-gpu', 'swiftshader_indirect', '-feature', '-Vulkan', '-accel', 'on', '-verbose']
+                       '-no-boot-anim', '-no-snapshot', '-no-metrics', '-gpu', 'swiftshader_indirect', '-feature', '-Vulkan', '-accel', 'on', '-verbose']
             device.process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT, env=env)
             device.ready()
             for package in ('com.google.android.gms', 'com.google.android.gsf', 'com.google.android.apps.nexuslauncher', 'com.google.android.inputmethod.latin'):
@@ -120,7 +125,7 @@ def verify(sdk, work, manifest):
             if not match:
                 raise AssertionError('截图查询缺少 display id')
             with (evidence / 'screen.png').open('wb') as screenshot:
-                subprocess.run([device.adb, '-s', 'emulator-5554', 'exec-out', 'screencap', '-d', match[1], '-p'], stdout=screenshot, check=True, timeout=30)
+                subprocess.run([device.adb, '-s', 'emulator-5554', 'exec-out', 'screencap', '-d', match[1], '-p'], stdout=screenshot, check=True, timeout=30, env=env)
             device.capture('uimode.txt', 'dumpsys', 'uimode')
             device.capture('overlays.txt', 'cmd', 'overlay', 'list')
             report['status'] = 'passed'
