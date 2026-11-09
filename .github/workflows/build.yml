@@ -1,0 +1,78 @@
+name: AvdLite
+
+on:
+  workflow_dispatch:
+    inputs:
+      api:
+        description: "Google 镜像 API（latest 或 35 起，例如 35、36.1、37.2）"
+        required: true
+        default: latest
+        type: string
+      page_size:
+        description: "页大小；auto 在最新版本优先选择 16 KB"
+        default: auto
+        type: choice
+        options: [auto, 4k, 16k]
+      enable_ksu:
+        description: "下载并校验官方最新稳定 KernelSU"
+        default: true
+        type: boolean
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: avdlite-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  source-check:
+    name: 官方镜像与缓存检查
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      INPUT_API: ${{ inputs.api || 'latest' }}
+      INPUT_PAGE_SIZE: ${{ inputs.page_size || 'auto' }}
+      INPUT_KSU: ${{ github.event_name != 'workflow_dispatch' || inputs.enable_ksu }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: 运行源码检查
+        run: python3 -m unittest discover -s tests -v
+      - name: 解析官方最新版本
+        id: resolve
+        run: |
+          ksu_args=()
+          if [[ "$INPUT_KSU" == true ]]; then ksu_args+=(--ksu); fi
+          python3 -m avdlite.sources resolve --api "$INPUT_API" --page-size "$INPUT_PAGE_SIZE" "${ksu_args[@]}" --manifest "$RUNNER_TEMP/avdlite/manifest.json"
+      - name: 缓存官方镜像
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/image
+          key: image-v1-${{ steps.resolve.outputs.image_key }}
+      - name: 缓存 KernelSU release
+        if: env.INPUT_KSU == 'true'
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .cache/ksu
+          key: ksu-v1-${{ steps.resolve.outputs.ksu_key }}
+      - name: 下载并核验缓存内容
+        run: python3 -m avdlite.sources download --manifest "$RUNNER_TEMP/avdlite/manifest.json" --cache "$GITHUB_WORKSPACE/.cache"
+      - name: 检查最新镜像分区
+        run: python3 -m avdlite.preflight --archive "$GITHUB_WORKSPACE/.cache/image/source.zip" --work "$RUNNER_TEMP/avdlite"
+      - name: 上传准备检查报告
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: preflight-api-${{ steps.resolve.outputs.api }}-${{ steps.resolve.outputs.page_size }}
+          path: |
+            ${{ runner.temp }}/avdlite/manifest.json
+            ${{ runner.temp }}/avdlite/preflight.json
+          if-no-files-found: error
+          retention-days: 7
