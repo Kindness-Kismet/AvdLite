@@ -8,6 +8,7 @@ import subprocess
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from PIL import Image
 
 
 class Device:
@@ -63,9 +64,18 @@ class Device:
         match = re.search(r'Display (\d+)', displays)
         if not match:
             raise AssertionError('Display ID query returned no display for the screenshot')
-        with (self.evidence / name).open('wb') as screenshot:
-            subprocess.run([self.adb, '-s', 'emulator-5554', 'exec-out', 'screencap', '-d', match[1], '-p'],
-                           stdout=screenshot, check=True, timeout=30, env=self.env)
+        path = self.evidence / name
+
+        def visible():
+            with path.open('wb') as screenshot:
+                subprocess.run([self.adb, '-s', 'emulator-5554', 'exec-out', 'screencap', '-d', match[1], '-p'],
+                               stdout=screenshot, check=True, timeout=30, env=self.env)
+            with Image.open(path) as frame:
+                # Exclude the navigation handle when checking for visible application content.
+                content = frame.convert('RGB').crop((0, 0, frame.width, frame.height * 9 // 10))
+                return any(high - low > 8 for low, high in content.getextrema())
+
+        self.wait(visible, 'Timed out waiting for visible pixels in ' + name, timeout=120)
 
     def capture(self, name, *args):
         text = self.shell(*args, check=False, timeout=60)
@@ -151,11 +161,11 @@ def verify(sdk, work, manifest):
                 device.wait(lambda: device.shell('getprop', 'sys.avdlite.ksu_ready', check=False) == '1', 'Timed out waiting for KernelSU initialization after reboot', timeout=120)
                 if 'uid=0' not in device.shell('su', '-c', 'id'):
                     raise AssertionError('Root verification failed after reboot')
+            device.open_ui('com.android.settings', 'settings.xml', '-a', 'android.settings.SETTINGS')
+            device.screenshot('screen.png')
             device.open_ui('com.google.android.apps.nexuslauncher', 'home-reboot.xml',
                            '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.HOME')
             device.screenshot('home.png')
-            device.open_ui('com.android.settings', 'settings.xml', '-a', 'android.settings.SETTINGS')
-            device.screenshot('screen.png')
             report['checks']['interactive_home_and_settings_after_reboot'] = True
             device.capture('uimode.txt', 'dumpsys', 'uimode')
             device.capture('overlays.txt', 'cmd', 'overlay', 'list')

@@ -73,7 +73,7 @@ jobs:
       - name: Install build and emulator tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y e2fsprogs gdisk zerofree lz4 cpio unzip libpulse0 libnss3 libxkbcommon0
+          sudo apt-get install -y e2fsprogs gdisk zerofree lz4 cpio unzip libpulse0 libnss3 libxkbcommon0 python3-pil
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;35.0.0" "platforms;android-35" "platform-tools" "emulator"
           sudo chmod a+rw /dev/kvm
           df -h "$RUNNER_TEMP"
