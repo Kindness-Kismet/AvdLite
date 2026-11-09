@@ -6,6 +6,7 @@ import re
 import shlex
 import subprocess
 import time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
@@ -38,6 +39,33 @@ class Device:
     def ready(self):
         self.wait(lambda: self.shell('getprop', 'sys.boot_completed', check=False) == '1', 'Timed out waiting for Android boot')
         self.wait(lambda: 'package:' in self.shell('pm', 'path', 'com.android.systemui', check=False), 'Timed out waiting for the package manager')
+
+    def open_ui(self, package, name, *intent):
+        self.shell('input', 'keyevent', 'KEYCODE_WAKEUP')
+        self.shell('wm', 'dismiss-keyguard')
+        self.shell('am', 'start', '-W', *intent)
+
+        def drawn():
+            result = self.shell('uiautomator', 'dump', '--compressed', '/data/local/tmp/avdlite-ui.xml', check=False)
+            if 'dumped to:' not in result:
+                return False
+            xml = self.shell('cat', '/data/local/tmp/avdlite-ui.xml')
+            nodes = ET.fromstring(xml).iter('node')
+            ready = any(node.get('package') == package and node.get('clickable') == 'true' for node in nodes)
+            if ready:
+                (self.evidence / name).write_text(xml, encoding='utf-8')
+            return ready
+
+        self.wait(drawn, 'Timed out waiting for interactive UI: ' + package, timeout=120)
+
+    def screenshot(self, name):
+        displays = self.shell('dumpsys', 'SurfaceFlinger', '--display-id')
+        match = re.search(r'Display (\d+)', displays)
+        if not match:
+            raise AssertionError('Display ID query returned no display for the screenshot')
+        with (self.evidence / name).open('wb') as screenshot:
+            subprocess.run([self.adb, '-s', 'emulator-5554', 'exec-out', 'screencap', '-d', match[1], '-p'],
+                           stdout=screenshot, check=True, timeout=30, env=self.env)
 
     def capture(self, name, *args):
         text = self.shell(*args, check=False, timeout=60)
@@ -104,6 +132,9 @@ def verify(sdk, work, manifest):
             else:
                 if 'package:' in device.shell('pm', 'path', 'me.weishu.kernelsu', check=False):
                     raise AssertionError('Standard image unexpectedly contains the KernelSU manager')
+            device.open_ui('com.google.android.apps.nexuslauncher', 'home-cold.xml',
+                           '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.HOME')
+            report['checks']['interactive_home_after_cold_boot'] = True
             device.shell('cmd', 'uimode', 'night', 'custom_schedule')
             for key, value in [('dark_theme_custom_start_time', '79200000000'), ('dark_theme_custom_end_time', '21600000000')]:
                 device.shell('settings', 'put', 'secure', key, value)
@@ -120,12 +151,12 @@ def verify(sdk, work, manifest):
                 device.wait(lambda: device.shell('getprop', 'sys.avdlite.ksu_ready', check=False) == '1', 'Timed out waiting for KernelSU initialization after reboot', timeout=120)
                 if 'uid=0' not in device.shell('su', '-c', 'id'):
                     raise AssertionError('Root verification failed after reboot')
-            displays = device.shell('dumpsys', 'SurfaceFlinger', '--display-id')
-            match = re.search(r'Display (\d+)', displays)
-            if not match:
-                raise AssertionError('Display ID query returned no display for the screenshot')
-            with (evidence / 'screen.png').open('wb') as screenshot:
-                subprocess.run([device.adb, '-s', 'emulator-5554', 'exec-out', 'screencap', '-d', match[1], '-p'], stdout=screenshot, check=True, timeout=30, env=env)
+            device.open_ui('com.google.android.apps.nexuslauncher', 'home-reboot.xml',
+                           '-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.HOME')
+            device.screenshot('home.png')
+            device.open_ui('com.android.settings', 'settings.xml', '-a', 'android.settings.SETTINGS')
+            device.screenshot('screen.png')
+            report['checks']['interactive_home_and_settings_after_reboot'] = True
             device.capture('uimode.txt', 'dumpsys', 'uimode')
             device.capture('overlays.txt', 'cmd', 'overlay', 'list')
             report['status'] = 'passed'

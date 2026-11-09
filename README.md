@@ -64,4 +64,4 @@ Hardware components remain installed. The UWB service starts once when its port 
 
 Build checks cover official checksums, GPT and dynamic partition metadata, the AVB public key and signature, ext4 filesystems, the original kernel, and upstream `build.prop` files.
 
-Boot checks use an isolated AVD to verify core applications, SELinux Enforcing, hardware declarations, overlays, and KernelSU initialization. A reboot verifies dark theme schedule persistence. Each run saves logs, a screenshot, and JSON reports.
+Boot checks use an isolated AVD to verify core applications, SELinux Enforcing, hardware declarations, overlays, and KernelSU initialization. A reboot verifies dark theme schedule persistence. UI checks require interactive launcher and settings controls. Each run saves logs, screenshots, UI hierarchies, and JSON reports.
